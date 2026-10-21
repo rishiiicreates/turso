@@ -1,0 +1,88 @@
+@database :memory:
+
+# https://github.com/tursodatabase/turso/issues/10210
+@cross-check-integrity
+test quoted-double-integer-primary-key-rowid-alias {
+    CREATE TABLE t(a "INTEGER" PRIMARY KEY, b);
+    INSERT INTO t VALUES (5, 1);
+    SELECT a, rowid, a IS rowid FROM t;
+}
+expect {
+    5|5|1
+}
+
+@cross-check-integrity
+test quoted-single-integer-primary-key-rowid-alias {
+    CREATE TABLE t(a 'INTEGER' PRIMARY KEY, b);
+    INSERT INTO t VALUES (6, 2);
+    SELECT a, rowid, a IS rowid FROM t;
+}
+expect {
+    6|6|1
+}
+
+@cross-check-integrity
+test quoted-backtick-integer-primary-key-rowid-alias {
+    CREATE TABLE t(a `INTEGER` PRIMARY KEY, b);
+    INSERT INTO t VALUES (7, 3);
+    SELECT a, rowid, a IS rowid FROM t;
+}
+expect {
+    7|7|1
+}
+
+@cross-check-integrity
+test quoted-bracket-integer-primary-key-rowid-alias {
+    CREATE TABLE t(a [INTEGER] PRIMARY KEY, b);
+    INSERT INTO t VALUES (8, 4);
+    SELECT a, rowid, a IS rowid FROM t;
+}
+expect {
+    8|8|1
+}
+
+@cross-check-integrity
+test quoted-integer-separate-primary-key-rowid-alias {
+    CREATE TABLE t1(a "INTEGER", b, PRIMARY KEY(a));
+    INSERT INTO t1 VALUES (10, 'x');
+    CREATE TABLE t2(a 'INTEGER', b, PRIMARY KEY(a));
+    INSERT INTO t2 VALUES (20, 'y');
+    CREATE TABLE t3(a `INTEGER`, b, PRIMARY KEY(a));
+    INSERT INTO t3 VALUES (30, 'z');
+    SELECT a, rowid, a IS rowid FROM t1;
+    SELECT a, rowid, a IS rowid FROM t2;
+    SELECT a, rowid, a IS rowid FROM t3;
+}
+expect {
+    10|10|1
+    20|20|1
+    30|30|1
+}
+
+@cross-check-integrity
+test quoted-integer-creates-no-autoindex {
+    CREATE TABLE t1(a "INTEGER" PRIMARY KEY, b);
+    CREATE TABLE t2(a 'INTEGER' PRIMARY KEY, b);
+    CREATE TABLE t3(a `INTEGER` PRIMARY KEY, b);
+    CREATE TABLE t4(a [INTEGER] PRIMARY KEY, b);
+    SELECT count(*) FROM sqlite_schema WHERE type='index';
+}
+expect {
+    0
+}
+
+@cross-check-integrity
+test non-exact-integer-types-are-not-rowid-alias {
+    CREATE TABLE t1(a """INTEGER""" PRIMARY KEY, b);
+    INSERT INTO t1 VALUES (5, 'a');
+    CREATE TABLE t2(a "INT" PRIMARY KEY, b);
+    INSERT INTO t2 VALUES (6, 'b');
+    SELECT rowid = a, rowid, a FROM t1;
+    SELECT rowid = a, rowid, a FROM t2;
+    SELECT count(*) FROM sqlite_schema WHERE type='index';
+}
+expect {
+    0|1|5
+    0|1|6
+    2
+}

@@ -1050,14 +1050,12 @@ pub(crate) fn type_from_name(type_name: &str) -> (Type, bool) {
     (Type::Numeric, false)
 }
 
-/// Older Turso versions kept the quotes of `"INTEGER"`, `'INTEGER'` and
-/// `` `INTEGER` `` when deciding whether an INTEGER PRIMARY KEY column is a
-/// rowid alias, and only removed the brackets of `[INTEGER]`. Existing
-/// databases depend on that, because a column that is not a rowid alias is
-/// stored in the record and has an automatic index.
+/// An INTEGER PRIMARY KEY column is an alias for the rowid when its type name
+/// is exactly INTEGER, with or without quotes/brackets (e.g. `"INTEGER"`,
+/// `'INTEGER'`, `` `INTEGER` ``, `[INTEGER]`).
 pub(crate) fn is_rowid_alias_type(written_type_name: &str) -> bool {
-    written_type_name.eq_ignore_ascii_case("INTEGER")
-        || written_type_name.eq_ignore_ascii_case("[INTEGER]")
+    let name = strip_type_name_quotes(written_type_name).unwrap_or(written_type_name);
+    name.eq_ignore_ascii_case("INTEGER")
 }
 
 pub fn columns_from_create_table_body(

@@ -405,13 +405,13 @@ fn test_alter_table_keeps_type_names_as_written_on_reopen() {
     }
 }
 
-/// Older Turso versions kept the quotes in `a "INTEGER" PRIMARY KEY`, so the
-/// column was not a rowid alias and the table got an automatic index for the
-/// primary key. Such a database must still open, and `a` must keep its stored
-/// values instead of reading the rowid.
+/// SQLite treats quoted integer types like `a "INTEGER" PRIMARY KEY`,
+/// `'INTEGER'`, and `` `INTEGER` `` as rowid aliases. Databases created by
+/// SQLite with quoted INTEGER PRIMARY KEY must open properly in Turso, and
+/// `a` must alias the rowid rather than reading NULL from the record payload.
 #[test]
-fn test_quoted_integer_primary_key_with_automatic_index_reopen() {
-    let quoted_types = ["\"INTEGER\"", "'INTEGER'", "`INTEGER`"];
+fn test_quoted_integer_primary_key_reopen() {
+    let quoted_types = ["\"INTEGER\"", "'INTEGER'", "`INTEGER`", "[INTEGER]"];
     let column_constraints = ["PRIMARY KEY", "PRIMARY KEY UNIQUE"];
     for (quoted_type, constraints) in quoted_types
         .into_iter()
@@ -423,12 +423,8 @@ fn test_quoted_integer_primary_key_with_automatic_index_reopen() {
         let sqlite = rusqlite::Connection::open(&path).unwrap();
         sqlite
             .execute_batch(&format!(
-                "CREATE TABLE t(a INT {constraints}, b TEXT);
-                 INSERT INTO t VALUES (10, 'x'), (20, 'y');
-                 PRAGMA writable_schema = ON;
-                 UPDATE sqlite_schema SET sql = 'CREATE TABLE t(a {} {constraints}, b TEXT)'
-                  WHERE name = 't';",
-                quoted_type.replace('\'', "''")
+                "CREATE TABLE t(a {quoted_type} {constraints}, b TEXT);
+                 INSERT INTO t VALUES (10, 'x'), (20, 'y');"
             ))
             .unwrap();
         drop(sqlite);
@@ -437,7 +433,7 @@ fn test_quoted_integer_primary_key_with_automatic_index_reopen() {
         let conn = db.connect_limbo();
 
         let rows: Vec<(i64, i64, String)> = conn.exec_rows("SELECT rowid, a, b FROM t ORDER BY a");
-        assert_eq!(rows, vec![(1, 10, "x".into()), (2, 20, "y".into())]);
+        assert_eq!(rows, vec![(10, 10, "x".into()), (20, 20, "y".into())]);
 
         assert!(conn.execute("INSERT INTO t VALUES (10, 'z')").is_err());
         conn.execute("INSERT INTO t VALUES (30, 'z')").unwrap();
@@ -457,10 +453,10 @@ fn test_quoted_integer_primary_key_with_automatic_index_reopen() {
         assert_eq!(
             rows,
             vec![
-                (1, 10, "x".into()),
-                (2, 20, "y".into()),
-                (3, 30, "z".into()),
-                (4, 40, "w".into()),
+                (10, 10, "x".into()),
+                (20, 20, "y".into()),
+                (30, 30, "z".into()),
+                (40, 40, "w".into()),
             ]
         );
         assert!(conn.execute("INSERT INTO t VALUES (40, 'v', 2)").is_err());
